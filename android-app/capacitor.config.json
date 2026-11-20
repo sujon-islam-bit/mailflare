@@ -1,0 +1,10 @@
+{
+  "appId": "com.thealgorithmai.mail",
+  "appName": "The Algorithm",
+  "webDir": "www",
+  "backgroundColor": "#101010",
+  "server": {
+    "url": "https://mailflare.yasuuuu-official.workers.dev",
+    "cleartext": false
+  }
+}

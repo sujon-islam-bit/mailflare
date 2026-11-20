@@ -1,0 +1,9 @@
+{
+	"appId": "com.thealgorithmai.mail",
+	"appName": "The Algorithm",
+	"webDir": "www",
+	"server": {
+		"url": "https://mailflare.yasuuuu-official.workers.dev",
+		"cleartext": false
+	}
+}

@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
 	return {
-		name: "Mailflare",
-		short_name: "Mailflare",
+		name: "The Algorithm",
+		short_name: "The Algorithm",
 		description: "Email, anywhere.",
 		id: "/",
 		scope: "/",

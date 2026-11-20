@@ -17,7 +17,26 @@ async function save(buf, path) {
   console.log("wrote", path);
 }
 
+// Sample the logo's own background colour from its corner pixel so the
+// padding blends seamlessly.
+const rawInfo = await sharp(logoPng).raw().toBuffer({ resolveWithObject: true });
+const [br, bgc, bb] = rawInfo.data;
+const logoBg = `rgb(${br},${bgc},${bb})`;
+
+async function paddedIcon(size, scale) {
+  const inner = Math.round(size * scale);
+  const innerBuf = await sharp(logoPng).resize(inner, inner).png().toBuffer();
+  return sharp({
+    create: { width: size, height: size, channels: 4, background: logoBg },
+  })
+    .composite([{ input: innerBuf, gravity: "centre" }])
+    .png()
+    .toBuffer();
+}
+
 // Launcher icons per density: [folder, iconSize, foregroundSize]
+// Logo sits at 70% of the legacy icon and 58% of the adaptive foreground
+// canvas (inside the safe zone) so it never looks oversized or cropped.
 for (const [d, icon, fg] of [
   ["mdpi", 48, 108],
   ["hdpi", 72, 162],
@@ -25,10 +44,10 @@ for (const [d, icon, fg] of [
   ["xxhdpi", 144, 324],
   ["xxxhdpi", 192, 432],
 ]) {
-  const iconBuf = await sharp(logoPng).resize(icon, icon).png().toBuffer();
+  const iconBuf = await paddedIcon(icon, 0.7);
   await save(iconBuf, `${RES}/mipmap-${d}/ic_launcher.png`);
   await save(iconBuf, `${RES}/mipmap-${d}/ic_launcher_round.png`);
-  const fgBuf = await sharp(logoPng).resize(fg, fg).png().toBuffer();
+  const fgBuf = await paddedIcon(fg, 0.58);
   await save(fgBuf, `${RES}/mipmap-${d}/ic_launcher_foreground.png`);
 }
 

@@ -17,26 +17,41 @@ async function save(buf, path) {
   console.log("wrote", path);
 }
 
-// Sample the logo's own background colour from its corner pixel so the
-// padding blends seamlessly.
-const rawInfo = await sharp(logoPng).raw().toBuffer({ resolveWithObject: true });
+// ---- App icon: envelope design (owner-approved) ----
+// Black rounded square, white envelope outline, the A monogram inside.
+const M = 512;
+const baseBig = await sharp(logoPng).resize(M, M).png().toBuffer();
+const rawInfo = await sharp(baseBig).raw().toBuffer({ resolveWithObject: true });
 const [br, bgc, bb] = rawInfo.data;
 const logoBg = `rgb(${br},${bgc},${bb})`;
 
-async function paddedIcon(size, scale) {
-  const inner = Math.round(size * scale);
-  const innerBuf = await sharp(logoPng).resize(inner, inner).png().toBuffer();
-  return sharp({
-    create: { width: size, height: size, channels: 4, background: logoBg },
-  })
-    .composite([{ input: innerBuf, gravity: "centre" }])
-    .png()
-    .toBuffer();
+// White A cut-out: thresholded luminance as alpha (dark bg -> transparent)
+const lum = await sharp(baseBig).grayscale().raw().toBuffer();
+const rgba = Buffer.alloc(M * M * 4);
+for (let i = 0; i < M * M; i++) {
+  const v = lum[i];
+  const a = Math.max(0, Math.min(255, Math.round(((v - 70) / (190 - 70)) * 255)));
+  rgba[i * 4] = 255; rgba[i * 4 + 1] = 255; rgba[i * 4 + 2] = 255; rgba[i * 4 + 3] = a;
 }
+const aFull = await sharp(rgba, { raw: { width: M, height: M, channels: 4 } }).png().toBuffer();
+const AH = 124;
+const aInner = await sharp(aFull).resize(AH, AH).png().toBuffer();
+
+const envSvg = `<svg width="${M}" height="${M}" viewBox="0 0 512 512">
+  <rect x="58" y="140" width="396" height="260" rx="26" fill="none" stroke="white" stroke-width="16"/>
+  <path d="M62 158 L256 248 L450 158" fill="none" stroke="white" stroke-width="16" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>`;
+const envBuf = await sharp(Buffer.from(envSvg)).png().toBuffer();
+const bgSvg = `<svg width="${M}" height="${M}"><rect width="${M}" height="${M}" rx="112" fill="${logoBg}"/></svg>`;
+const master = await sharp(Buffer.from(bgSvg))
+  .composite([
+    { input: envBuf, gravity: "centre" },
+    { input: aInner, left: Math.round((M - AH) / 2), top: 262 },
+  ])
+  .png()
+  .toBuffer();
 
 // Launcher icons per density: [folder, iconSize, foregroundSize]
-// Logo sits at 70% of the legacy icon and 58% of the adaptive foreground
-// canvas (inside the safe zone) so it never looks oversized or cropped.
 for (const [d, icon, fg] of [
   ["mdpi", 48, 108],
   ["hdpi", 72, 162],
@@ -44,10 +59,17 @@ for (const [d, icon, fg] of [
   ["xxhdpi", 144, 324],
   ["xxxhdpi", 192, 432],
 ]) {
-  const iconBuf = await paddedIcon(icon, 0.7);
+  const iconBuf = await sharp(master).resize(icon, icon).png().toBuffer();
   await save(iconBuf, `${RES}/mipmap-${d}/ic_launcher.png`);
   await save(iconBuf, `${RES}/mipmap-${d}/ic_launcher_round.png`);
-  const fgBuf = await paddedIcon(fg, 0.58);
+  // Adaptive foreground: design at 80% centred on a full-bleed brand canvas
+  const fgInner = await sharp(master).resize(Math.round(fg * 0.8), Math.round(fg * 0.8)).png().toBuffer();
+  const fgBuf = await sharp({
+    create: { width: fg, height: fg, channels: 4, background: logoBg },
+  })
+    .composite([{ input: fgInner, gravity: "centre" }])
+    .png()
+    .toBuffer();
   await save(fgBuf, `${RES}/mipmap-${d}/ic_launcher_foreground.png`);
 }
 
